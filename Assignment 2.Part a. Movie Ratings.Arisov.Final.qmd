@@ -1,0 +1,208 @@
+---
+title: "Assignment 2. Part a. SQL and R - Movie ratings analysis."
+author: "Maxim Arisov"
+format: html
+date: 09/12/26
+code-fold: true
+toc: true
+editor: visual
+---
+
+# SQL and R - Movie Ratings Analysis
+
+# Introduction. Approach
+
+## Creation of SQL Database using the PostgreSQL
+
+For this assignment, I collected movie ratings from different users. The ratings are from 1 to 5. I used three tables: users, movies, and ratings. The ratings table connects each user with the movies they rated. For this particular assignment 2, part a, I will create the SQL Database based on the provided instructions (using CREATE TABLE, etc.). I will show the creation of data in the Excel sheets, first, and then transferring it to CSV files, and eventually uploading to the PostgreSQL.
+
+## Creation of CSV file from a SQL Query. R use.
+
+I will then create another CSV files from PostgreSQL Query and will use it in R studio to count ratings per user and movie, compute average ratings, identify and clean any missing values, and calculating means and counts. Dplyr will be implemented during coding process. First, I stored the data using SQL. I used separate tables to keep the data organized. Second, I loaded the data into R. I combined the tables using `user_id` and `movie_id`. Then, I used R to check and analyze the data. I calculated the average rating for each movie and the number of ratings for each movie. For the assignment 2a, I also checked for missing ratings. I kept missing ratings as `NA` because a missing value means the user did not give a rating.
+
+# Code Base
+
+This project analyses movie ratings obtained from participants. The data is stored using users, movies, and ratings.
+
+```{r}
+movies <- read.csv("https://raw.githubusercontent.com/Maximus2485/Assignment-2.-part-a.-movie-ratings/refs/heads/main/movies.updated.csv")
+ratings <- read.csv("https://raw.githubusercontent.com/Maximus2485/Assignment-2.-part-a.-movie-ratings/refs/heads/main/movie%20ratings.updated.csv")
+users <- read.csv("https://raw.githubusercontent.com/Maximus2485/Assignment-2.-part-a.-movie-ratings/refs/heads/main/users.%20updated.csv")
+
+head(movies)
+head(ratings)
+head(users)
+
+```
+
+**Lets install the SQL packages now**
+
+```{r}
+library(DBI)
+library(RSQLite)
+
+con <- dbConnect(SQLite(), "movie_ratings.db")
+```
+
+**Lets connect to SQLite**
+
+```{r}
+library(DBI)
+library(RSQLite)
+
+con <- dbConnect(RSQLite::SQLite(), "movie_ratings.db")
+
+dbIsValid(con)
+```
+
+**Lets create SQL tables in SQLite**
+
+```{sql connection=con}
+CREATE TABLE IF NOT EXISTS users1 (
+user_id INT PRIMARY KEY,
+name TEXT
+);
+
+```
+
+```{sql connection=con}
+CREATE TABLE IF NOT EXISTS movies1 (
+movie_id INT PRIMARY KEY,
+title TEXT
+);
+
+```
+
+```{sql connection=con}
+CREATE TABLE IF NOT EXISTS ratings1 (
+user_id INT, movie_id INT, rating INT,
+FOREIGN KEY (user_id) REFERENCES users (user_id),
+FOREIGN KEY (movie_id) REFERENCES movies(movie_id)
+);
+```
+
+**Lets run a command to see whether the tables were created**
+
+```{r}
+DBI::dbListTables(con)
+```
+
+**Lets check now the data variables**
+
+```{r}
+DBI::dbListFields(con, "movies1")
+DBI::dbListFields(con, "users1")
+DBI::dbListFields(con, "ratings1")
+```
+
+**Lets populate SQL tables**
+
+```{r}
+dbWriteTable(con, "users1", users, overwrite = TRUE)
+dbWriteTable(con, "movies1", movies, overwrite = TRUE)
+dbWriteTable(con, "ratings1", ratings, overwrite = TRUE)
+```
+
+**Lets check missing ratings in SQL**
+
+```{sql connection=con}
+SELECT *
+FROM ratings1 
+WHERE rating is NULL
+```
+
+**Lets join the 3 tables with SQL**
+
+```{sql connection=con}
+SELECT
+    u.user_id,
+    u.name,
+    m.movie_id,
+    m.title,
+    r.rating
+FROM ratings1 AS r
+JOIN users1 AS u
+    ON r.user_id = u.user_id
+JOIN movies1 AS m
+    ON r.movie_id = m.movie_id;
+
+
+```
+
+**Now, Lets bring the SQL results into the R**
+
+```{r}
+movie_data <- DBI::dbGetQuery(con,
+                              "SELECT
+    u.user_id,
+    u.name,
+    m.movie_id,
+    m.title,
+    r.rating
+FROM ratings1 AS r
+JOIN users1 AS u
+    ON r.user_id = u.user_id
+JOIN movies1 AS m
+    ON r.movie_id = m.movie_id;
+"
+                              )
+head(movie_data)
+```
+
+**Lets analyse the data in R**
+
+```{r}
+#Lest check the average rating for each movie (mean)
+aggregate(
+  rating ~ title, 
+  data = movie_data,
+  FUN = mean,
+  na.rm = TRUE
+)
+```
+
+```{r}
+#Lets check and find missing ratings
+sum(is.na(movie_data$rating))
+```
+
+```{r}
+#Lets find number of ratings for each movie
+aggregate(
+  rating ~ title, 
+  data = movie_data,
+  FUN = function(x) sum(!is.na(x))
+)
+```
+
+```{r}
+#Lets check number of ratings for user
+aggregate(
+  rating ~ name,
+  data = movie_data,
+  FUN = function(x) sum(!is.na(x))
+)
+```
+
+## Conclusion
+
+During this assignment 2. part a, I stored movie rating data in a SQL database and used SQL subsequently to join the tables. Then, I loaded the obtained data into the R and analyzed the ratings. At the end, I checked for missing values and calculated the average rating, number of ratings for each movie.
+
+### **Use of resources**
+
+The R for Data Science (2e) in addition with Gemini AI were used to find some issues and shortcomings.
+
+GitHub raw data is available at the links below:
+
+<https://raw.githubusercontent.com/Maximus2485/Assignment-2.-part-a.-movie-ratings/refs/heads/main/movie%20ratings.updated.csv>
+
+<https://raw.githubusercontent.com/Maximus2485/Assignment-2.-part-a.-movie-ratings/refs/heads/main/movies.updated.csv>
+
+<https://raw.githubusercontent.com/Maximus2485/Assignment-2.-part-a.-movie-ratings/refs/heads/main/users.%20updated.csv>
+
+## References
+
+Google DeepMind. (2025). Gemini 3 Flash \[Large language model\].\
+\[https://gemini.google.com.\](https://gemini.google.com/) Accessed September 12th, 2026.
+
+Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. (2023). ***R for data science*** (2nd ed.). O'Reilly Media. https://r4ds.hadley.nz/
